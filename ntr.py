@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
 import sys
+import neon
+
 from os import path
 
 from ntr.utils import sp
+from ntr.story import Story
 
 
 def get_arg(index):
@@ -27,7 +30,14 @@ def main():
         sp(f"File '{story_file_path}' not found.")
         return
 
-    sp(f"File {story_file_path} found! YEAH.")
+    sp(f"Loading story file {story_file_path} ...")
+
+    with open(story_file_path, "r") as file:
+        try:
+            story_data = neon.decode(file.read())
+        except Exception:
+            sp("There was an error when decoding story file.")
+            return
 
 
 if __name__ == '__main__':
