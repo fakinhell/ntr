@@ -1,6 +1,5 @@
 import sys
 import time
-import itertools
 
 
 def split_iter(items, batch_size):
@@ -19,7 +18,7 @@ def split_iter(items, batch_size):
 
         try:
             collector.append(it.__next__())
-        except StopIteration as e:
+        except StopIteration:
             yield collector
             break
 
