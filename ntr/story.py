@@ -1,4 +1,11 @@
-from .utils import sp
+from ntr.items import ItemStorage, Item
+
+
+class World:
+    _map = None
+
+    def __init__(self, map_) -> None:
+        self._map = map_
 
 
 class Story(object):
@@ -12,46 +19,38 @@ class Story(object):
         self._start = start
         self._map = game_map
 
-    def run(self):
-        current_place = self._start
 
-        while True:
-            self._print_place_text(current_place)
-            current_place = self._handle_place_options(current_place)
+class PlaceNode:
+    node_id = ''
+    text = ''
+    item_storage: ItemStorage = None
+    options = None
 
-            if current_place is None:
-                break
+    def __init__(self, node_id: str, text: str, options: list,
+                 item_storage: ItemStorage = None) -> None:
+        self.node_id = node_id
+        self.text = text
+        self.options = options
+        self.item_storage = item_storage or ItemStorage([Item('hovno')])
 
-    def _print_place_text(self, place_id):
-        place_text = self._map[place_id]['text']
-        if type(place_text) == list:
-            for line in place_text:
-                sp(line)
-        else:
-            sp(place_text)
+    @property
+    def actions(self) -> list:
+        actions = []
 
-        print()
+        for item in self.item_storage.get_items():
+            actions.append(item)
 
-    def _handle_place_options(self, place_id):
-        keys = {}  # Helper mapping of "option key" -> "next place ID"
-        options = self._map[place_id].get('options', None)
 
-        if not options:
-            return None
+class ItemStorageNode(PlaceNode):
 
-        indent = "Your options:"
-        for key, option in options.items():
-            keys[key] = option['goto']
-            sp(f"{indent} {key}/ {option['label']}")
-            indent = "             "
+    @property
+    def text(self):
+        items = list(self.item_storage.values())
+        if not items:
+            return "No items here."
 
-        # Bother our user until a valid option is selected.
-        while True:
-            pressed = input(">>> ")
+        text = "You're browsing items. There " \
+            "are:" if len(items) > 1 else "is:"
+        text += ''.join([f'- {i}\n' for i in items])
 
-            if pressed in keys.keys():
-                break
-
-            sp("Enter a valid option.")
-
-        return keys[pressed]
+        return text

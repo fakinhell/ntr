@@ -1,5 +1,8 @@
 import sys
 import time
+from json import loads, dumps
+
+DEBUG_MODE = True
 
 
 def split_iter(items, batch_size):
@@ -30,14 +33,18 @@ def split_iter(items, batch_size):
         counter = 0
 
 
-def sp(text):
+def sp(text: str = '', end='\n'):
     """Primary text renderer function - with a pretty "scanning" effect."""
+    if DEBUG_MODE:
+        print(text, end=end)
+        return
+
     for batch in split_iter(text, 2):
         print(''.join(batch), end="", flush=True)
         time.sleep(0.01)
 
     # Put a newline at the end.
-    print()
+    print(end=end)
 
 
 def get_sys_arg(index):
@@ -46,3 +53,7 @@ def get_sys_arg(index):
         return sys.argv[index]
     except IndexError:
         return ''
+
+
+def normalize_dict(ordered_dict):
+    return loads(dumps(ordered_dict))

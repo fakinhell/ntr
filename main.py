@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import sys
 import neon
 
@@ -7,6 +6,7 @@ from os import path
 
 from ntr.utils import sp
 from ntr.story import Story
+from ntr.gameplay import GameplayFactory
 
 
 def get_arg(index):
@@ -40,7 +40,8 @@ def main(story_file_path):
     story_map = story_data['map']
 
     story = Story(story_description, start_place_id, story_map)
-    story.run()
+    gameplay = GameplayFactory.build(story)
+    gameplay.run()
 
 
 if __name__ == '__main__':

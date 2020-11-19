@@ -1,4 +1,4 @@
-from ntr.inventory import Item, Inventory
+from ntr.items import Item, ItemStorage
 
 
 def test_items():
@@ -15,12 +15,12 @@ def test_items():
     assert i_a.title != i_c.title
 
 
-def test_inventory():
+def test_item_storage():
     i_a = Item("paradox")
     i_b = Item("radiation")
 
     base = [i_a, i_b]
-    inv = Inventory(base)
+    inv = ItemStorage(base)
 
     _ = inv.get_items()
     assert len(_) == 2
@@ -55,7 +55,14 @@ def test_inventory():
     assert found is None
 
     #
-    # Deleting all items from inventory.
+    # Finding multiple items based on some condition.
+    #
+
+    found = inv.find_items(lambda item: "a" in item.title)
+    assert found == {i_b, i_new}
+
+    #
+    # Deleting all items from item_storage.
     #
 
     inv.delete_all_items()
