@@ -1,0 +1,69 @@
+info:
+  description: "Tohle je příběh Adolfa Hitlera v New Yorku."
+  character: "Adolf Hitler"
+  start: intro_1
+globals:
+  game_time_remaining: 60
+map:
+  health_shrine:
+    # Mgr. Lukáš Puška řekl, že by to mělo být v odděleném souboru - že jedna "hra" může být rozdělená ve více NSFW souborech.
+    text:
+      - "Jsi u studny."
+    options:
+      -
+        label: "Napít se ze studny"
+        goto: "@void"
+        execute_after_goto:
+          - "player.hp += 10"
+      -
+        label: "Jít zpět."
+        goto: "@back"
+  intro_1:
+    text:
+      - "Cítíš bolest. Cítíš ji v celém těle. Hlava ti třeští, jako kdybys do ni dostal obrovskou pecku."
+      - "Snažíš se pohnout rukou, ale jako by tě tělo odmítalo poslouchat..."
+    options:
+      -
+        label: "Pokračovat..."
+        goto: intro_2
+      -
+        label: "jít ke fakin studni"
+        goto: health_shrine
+  intro_2:
+    execute:
+      - "game_time_remaining -= 1"
+    text: Vole
+    locals:
+      final_boss_enter_attempts: 0
+    options:
+      -
+        show_only_if:
+          - "player.hp > 100"
+          - "and (player.inventory.find_item(lambda item: item.category == 'sekera' and item.condition > 80))"
+          - "or prdel == 1)"
+        go_only_if:
+          execute:
+            - "globals.final_boss_enter_attempts += 1"
+          condition:
+            - "player.hp > 95 or globals.final_boss_enter_attempts > 4"
+        label: "Pokusit se zvednout. (ale půjde ti to pouze pokud máš HP víc než 95.)"
+        goto: intro_3
+        execute_after_goto:
+          - "globals.game_time_remaining -= 1"
+      -
+        label: "Strčit prst do díry ve spánku."
+        goto: intro_2_a
+      -
+        label: "Jít zpět."
+        goto: "@back"
+  intro_2_a:
+    text:
+      - "Pomaličku zasouváš ukazováček do díry v tvojí hlavě..."
+      - "Ke svému zklamání tam však nenacházíš nic zvláštního, kromě drobných slizkých kousků tvého mozku."
+    options:
+      -
+        label: "Pokračovat..."
+        goto: intro_3
+
+  intro_3:
+    text: "Pomalu otevíráš oči..."

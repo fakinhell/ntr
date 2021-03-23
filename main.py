@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys
-import neon
+import yaml
 
 from os import path
 
@@ -30,7 +30,7 @@ def main(story_file_path):
 
     with open(story_file_path) as file:
         try:
-            story_data = neon.decode(file.read())
+            story_data = yaml.load(file.read(), Loader=yaml.SafeLoader)
         except Exception:
             sp("There was an error when decoding story file.")
             raise
