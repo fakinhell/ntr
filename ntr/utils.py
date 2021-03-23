@@ -1,6 +1,5 @@
 import sys
 import time
-from json import loads, dumps
 
 DEBUG_MODE = True
 
@@ -53,7 +52,3 @@ def get_sys_arg(index):
         return sys.argv[index]
     except IndexError:
         return ''
-
-
-def normalize_dict(ordered_dict):
-    return loads(dumps(ordered_dict))

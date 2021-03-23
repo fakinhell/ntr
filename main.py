@@ -5,8 +5,7 @@ import yaml
 from os import path
 
 from ntr.utils import sp
-from ntr.story import Story
-from ntr.gameplay import GameplayFactory
+from ntr.gameplay import GameplayFactory, Story
 
 
 def get_arg(index):

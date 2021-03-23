@@ -1,5 +1,5 @@
 import uuid
-from typing import Iterable, Union
+from typing import Iterable, Optional, Union
 
 
 class Item:
@@ -24,6 +24,9 @@ class ItemStorage:
             for i in items[:self.max_capacity] if self.max_capacity else items:
                 self.items[i.id] = i
 
+    def has_items(self) -> bool:
+        return bool(self.items)
+
     def add_item(self, item: Item):
         if self.max_capacity and len(self.items) > self.max_capacity:
             return False
@@ -36,7 +39,7 @@ class ItemStorage:
         else:
             return False
 
-    def find_item(self, predicate) -> Union[Item, None]:
+    def find_item(self, predicate) -> Optional[Item]:
         """Return the first item that matches some condition based on the
         predicate passed as argument.
 
@@ -48,13 +51,13 @@ class ItemStorage:
             if predicate(v):
                 return v
 
-    def find_items(self, predicate) -> set:
+    def find_items(self, predicate: callable) -> set:
         """Return set of all items that match some condition based on the
         predicate passed as argument.
 
         Example:
             # Return all items that have string "wilson" in its title.
-            self.find_items(lambda item: "wilsson" in item.title)
+            self.find_items(lambda item: "wilson" in item.title)
         """
         result = set()
         for v in self.items.values():

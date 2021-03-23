@@ -1,53 +1,35 @@
-from ntr.utils import sp, normalize_dict
-from ntr.story import World, Story, PlaceNode
-from ntr.characters import Player
+import string
+from typing import Iterable, Optional, Dict
+
+from ntr.items import Item, ItemStorage
+from ntr.characters import Character, Player
 
 
-class Decision:
-    description = ''
-    options = None
+class World:
+    nodes = None
 
-    def __init__(self, description: str, options: None):
+    def __init__(self, nodes) -> None:
+        self.nodes = nodes
+
+
+class Story(object):
+    """Class representing a story."""
+    description: str = ''
+    start: str = None
+    nodes: dict = {}
+
+    def __init__(self, description, start, game_nodes):
         self.description = description
-        self.options = options
-
-    def get_labeled_options(self):
-        return {k: o.label for k, o in self.options.items()}
-
-    def is_valid_option(self, option) -> bool:
-        return option in self.options
-
-
-class DecisionResult:
-    TYPE_GOTO = 1
-    TYPE_BROWSE_ITEMS = 2
-
-    TYPE = None
-    label = ''
-
-    def __init__(self, label) -> None:
-        self.label = label
-
-
-class GotoDecisionResult(DecisionResult):
-    TYPE = DecisionResult.TYPE_GOTO
-    goto = None
-
-    def __init__(self, label, goto) -> None:
-        super().__init__(label)
-        self.goto = goto
-
-
-class BrowseItemsDecisionResult(DecisionResult):
-    TYPE = DecisionResult.TYPE_BROWSE_ITEMS
+        self.start = start
+        self.nodes = game_nodes
 
 
 class GameplayFactory:
 
     @classmethod
     def build(cls, story: Story) -> 'Gameplay':
-        story._map = {k: v for k, v in map(cls._build_place_node,
-                      story._map.items())}
+        story.nodes = {k: v for k, v in map(cls._build_place_node,
+                       story.nodes.items())}
         return Gameplay(story)
 
     @staticmethod
@@ -57,118 +39,209 @@ class GameplayFactory:
 
         text = node_info.get('text', '')
         text = '\n'.join(text) if isinstance(text, list) else text
-        options = list(normalize_dict(node_info.get('options', {})).values())
 
-        return node_id, PlaceNode(node_id=node_id, text=text, options=options)
+        options = node_info.get('options', [])
+
+        actions = []
+        for option in options:
+            actions.append(GotoAction(option['label'], option['goto']))
+
+        actions = actions
+
+        return node_id, PlaceNode(text=text, static_actions=actions)
 
 
 class Gameplay:
-    _story = None
-    _world = None
+    story = None
+    world = None
+    player = None
 
-    def __init__(self, story: Story) -> None:
-        self._story = story
-        self._world = World(story._map)
+    def __init__(self, story: Story):
+        self.story = story
+        self.nodes = story.nodes
+        self.player = Player()
 
     def run(self):
-        current_node_id = last_node_id = self._story._start
-        next_node_id = None
-        player = Player()
+        node = self.nodes[self.story.start]
+        previous_node = None
 
         while True:
-            current_node = self._world._map[current_node_id]
+            action = node.run(self.player)
 
-            options = self._build_node_options(current_node)
-            decision = Decision(current_node.text, options)
-            chosen = options.get(player.turn(decision))
+            # If running node returned None, no action was determined and that
+            # means "do nothing".
+            if action is None:
+                continue
 
-            if isinstance(chosen, GotoDecisionResult):
-                next_node_id = chosen.goto
-                if next_node_id == '@back':
-                    current_node_id = last_node_id
-                    continue
+            # Result of action being resolved is either an instance of Node
+            # or None (do nothing) or False (exit game loop).
+            resolved = action.resolve(self.story, self.player)
 
-            if isinstance(chosen, BrowseItemsDecisionResult):
-                interaction = ItemStorageInteraction(current_node.item_storage)
-                interaction.run(player)
+            # If resolving action returned None (i.e. returned no Node to move
+            # to), stay in the current node.
+            if resolved is None:
+                continue
 
-            if current_node_id is None:
+            if resolved is False:
                 break
 
-            if next_node_id:
-                last_node_id = current_node_id
-                current_node_id = next_node_id
+            if resolved == "@back":
+                node = previous_node
+                continue
+
+            previous_node = node
+
+            # At this point we're sure the 'resolved' variable contains Node
+            # instance. Let's go there.
+            node = resolved
 
 
-    def _build_node_options(self, current_place):
-        result = {}
-        key_code = ord('a')
+class Action:
+    """Base class for all actions. Should not be ever instantiated directly.
+    """
+    #: Human-readable label for this action.
+    label: str = None
 
-        for opt in current_place.options:
-            result[chr(key_code)] = GotoDecisionResult(opt['label'],
-                                                       opt['goto'])
-            key_code += 1
+    def __init__(self, label: str):
+        self.label = label
 
-        if current_place.item_storage:
-            result['items'] = BrowseItemsDecisionResult('Browse items')
+    def resolve(self, story: Story, character: Character):
+        raise NotImplementedError
+
+
+class LambdaAction(Action):
+    """Universal action object for custom actions that are resolved by
+    executing the lambda function passed as argument.
+    """
+    fn: callable = None
+
+    def __init__(self, label: str, fn: callable):
+        super().__init__(label)
+        self.fn = fn
+
+    def resolve(self, story: Story, character: Character):
+        return self.fn(story, character)
+
+
+class GoBackAction(Action):
+    def __init__(self, label: str):
+        super().__init__(label)
+
+    def resolve(self, story: Story, character: Character):
+        return "@back"
+
+
+class GotoAction(Action):
+    goto: str = None
+
+    def __init__(self, label: str, goto: str):
+        super().__init__(label)
+        self.goto = goto
+
+    def resolve(self, story: Story, character: Character):
+        # TODO: Deal with "@back" which doesn't exist as a key in nodes dict,
+        # but is a special construct that's handled by the main loop.
+        return story.nodes[self.goto]
+
+
+class BrowseItemsAction(Action):
+    item_storage: ItemStorage
+
+    def __init__(self, label: str, item_storage: ItemStorage):
+        super().__init__(label)
+        self.item_storage = item_storage
+
+    def resolve(self, story: Story, character: Character):
+        return ItemStorageNode(self.item_storage)
+
+
+class Actions:
+    """
+    Named `Choices` originally (see https://www.youtube.com/watch?v=JenXIQazv2o)
+    """
+    actions: Dict[str, Action] = None
+
+    def __init__(self, actions: Iterable[Action]):
+        self.actions = {string.ascii_letters[i]: a for i, a in
+                        enumerate(actions)}
+
+    def __iter__(self):
+        """Yield tuples of (<keyboard key>, <action human-readable label>) for
+        each action in this actions container.
+
+        To be used for presenting possible actions that can be chosen.
+        """
+        return ((key, a.label) for key, a in self.actions.items())
+
+    def get(self, key) -> Optional[dict]:
+        """Return action object stored under some key, or None, if such key
+        doesn't point to any existing action."""
+        return self.actions.get(key)
+
+
+class PlaceNode:
+    text = ''
+    item_storage: ItemStorage = None
+    static_actions = None
+
+    def __init__(self, text: str, static_actions: Actions,
+                 item_storage: ItemStorage = None) -> None:
+        self.text = text
+        self.static_actions = static_actions
+        self.item_storage = item_storage or ItemStorage([Item('hovno')])
+
+    def run(self, character):
+        all_actions = Actions([*self.static_actions, *self.dynamic_actions])
+
+        character_action = character.turn(self.text, all_actions)
+
+        # Return action object the character has chosen, or None, if the
+        # character.turn() did not return anything that points to an available
+        # action.
+        return all_actions.get(character_action)
+
+    @property
+    def dynamic_actions(self):
+        result = []
+        if self.item_storage.has_items():
+            result.append(BrowseItemsAction('Browse items', self.item_storage))
 
         return result
 
 
-class PlayerInteraction:
-    def run(self, options):
-        sp("Your interactions:")
+class ItemStorageNode:
+    item_storage: ItemStorage = None
+    text = "You're browsing items."
 
-        for interaction_key, option in options.items():
-            sp(f"{interaction_key}. {option['text']}")
-
-        while True:
-            pressed = input("Interaction >>> ")
-            if pressed in options:
-                break
-
-            sp("Enter a valid option.")
-
-        return pressed
-
-
-class ItemStorageInteraction(PlayerInteraction):
-    SUBACTION_TYPE_EXAMINE = 'examine'
-    SUBACTION_TYPE_PICKUP = 'pick_up'
-
-    def __init__(self, item_storage) -> None:
+    def __init__(self, item_storage: ItemStorage) -> None:
         self.item_storage = item_storage
 
-    def run(self, player):
-        options = {}
-        subaction_id = 0
+    def run(self, character):
+        actions = Actions(self.storage_actions)
+        player_action = character.turn(self.text, actions)
+
+        # Return action object the character has chosen, or None, if the
+        # character.turn() did not return anything that points to an available
+        # action.
+        return actions.get(player_action)
+
+    def _action_pick_up(self, character: Character, item: Item):
+        self.item_storage.remove_item(item.id)
+        character.item_storage.add_item(item)
+
+    @property
+    def storage_actions(self):
+        actions = []
 
         for item in self.item_storage.get_items():
-            subaction_id += 1
-            options[str(subaction_id)] = {
-                'type': self.SUBACTION_TYPE_EXAMINE,
-                'text': f'Examine {item.title}',
-                'item': item
-            }
-            subaction_id += 1
-            options[str(subaction_id)] = {
-                'type': self.SUBACTION_TYPE_PICKUP,
-                'text': f'Pick up {item.title}',
-                'item': item
-            }
+            actions.append(LambdaAction(f'Examine {item.title}',
+                                        lambda story, character:
+                                            print(f"You see {item}")))
+            actions.append(LambdaAction(f'Pick up {item.title}',
+                                        lambda story, character:
+                                            self._action_pick_up(character, item)))
 
-        result = super().run(options)
-        subaction = options.get(result)
+        # Exit the item storage node (go back).
+        actions.append(GoBackAction("Stop browsing."))
 
-        if not subaction:
-            return
-
-        if subaction['type'] == self.SUBACTION_TYPE_EXAMINE:
-            print(f"You see {subaction['item'].title}")
-
-        if subaction['type'] == self.SUBACTION_TYPE_PICKUP:
-            player.item_storage.add_item(subaction['item'])
-            self.item_storage.remove_item(subaction['item'].id)
-            print(f"You picked up {subaction['item'].title}")
-
-
+        return actions
